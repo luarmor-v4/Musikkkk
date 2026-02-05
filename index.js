@@ -438,35 +438,49 @@ console.log('========== DEBUG INFO ==========');
 console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('DISCORD_TOKEN exists:', !!process.env.DISCORD_TOKEN);
 console.log('DISCORD_TOKEN length:', process.env.DISCORD_TOKEN?.length || 0);
-console.log('DISCORD_TOKEN preview:', process.env.DISCORD_TOKEN 
-    ? `${process.env.DISCORD_TOKEN.substring(0, 10)}...${process.env.DISCORD_TOKEN.substring(process.env.DISCORD_TOKEN.length - 5)}` 
-    : 'UNDEFINED');
 console.log('================================');
 
-// ============ LOGIN WITH ERROR HANDLING ============
+// ============ UNHANDLED ERROR HANDLERS ============
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Unhandled Rejection:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('❌ Uncaught Exception:', error);
+});
+
+// ============ LOGIN WITH TIMEOUT ============
 const token = process.env.DISCORD_TOKEN;
 
 if (!token) {
     console.error('❌ DISCORD_TOKEN tidak ditemukan!');
-    console.error('📋 Pastikan kamu sudah menambahkan DISCORD_TOKEN di:');
-    console.error('   Render Dashboard → Environment → Add Environment Variable');
-    console.error('   Key: DISCORD_TOKEN');
-    console.error('   Value: token bot kamu dari Discord Developer Portal');
 } else {
+    console.log('🔄 Mencoba login ke Discord...');
+    
+    // Timeout 30 detik
+    const loginTimeout = setTimeout(() => {
+        console.error('❌ Login TIMEOUT setelah 30 detik!');
+        console.error('🔑 Kemungkinan token salah atau network issue');
+    }, 30000);
+    
     client.login(token)
         .then(() => {
+            clearTimeout(loginTimeout);
             console.log('✅ Login berhasil!');
         })
         .catch((error) => {
+            clearTimeout(loginTimeout);
             console.error('❌ Login GAGAL!');
-            console.error('Error name:', error.name);
-            console.error('Error message:', error.message);
-            
-            if (error.message.includes('TOKEN_INVALID')) {
-                console.error('🔑 Token tidak valid! Cek ulang token di Discord Developer Portal');
-            } else if (error.message.includes('disallowed intents')) {
-                console.error('⚠️ Intents tidak diaktifkan! Aktifkan di Discord Developer Portal:');
-                console.error('   → Bot → Privileged Gateway Intents → Aktifkan semua');
-            }
+            console.error('Error:', error.message);
+            console.error('Code:', error.code);
         });
 }
+
+// ============ CLIENT ERROR EVENT ============
+client.on('error', (error) => {
+    console.error('❌ Client Error:', error);
+});
+
+client.on('warn', (warning) => {
+    console.warn('⚠️ Client Warning:', warning);
+});
