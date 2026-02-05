@@ -64,6 +64,23 @@ const kazagumo = new Kazagumo(
     { moveOnDisconnect: false, resumable: false, reconnectTries: 3, restTimeout: 15000 }
 );
 
+// ============ HELPER FUNCTIONS ============
+function formatDuration(ms) {
+    if (!ms || ms === 0) return '🔴 Live';
+    const s = Math.floor((ms / 1000) % 60);
+    const m = Math.floor((ms / (1000 * 60)) % 60);
+    const h = Math.floor(ms / (1000 * 60 * 60));
+    return h > 0 ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` : `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function errorEmbed(message) {
+    return new EmbedBuilder().setColor('#ff6b6b').setDescription(`❌ ${message}`);
+}
+
+function successEmbed(message) {
+    return new EmbedBuilder().setColor(BOT_INFO.color).setDescription(message);
+}
+
 // ============ LAVALINK EVENTS ============
 kazagumo.shoukaku.on('ready', (name) => console.log(`✅ Lavalink ${name} connected!`));
 kazagumo.shoukaku.on('error', (name, error) => console.error(`❌ Lavalink ${name} error:`, error));
@@ -112,9 +129,12 @@ kazagumo.on('playerError', (player, error) => {
 
 // ============ DISCORD CLIENT EVENTS ============
 client.on('ready', () => {
-    console.log('✅✅✅ BOT READY EVENT TRIGGERED ✅✅✅');
-    console.log(`🤖 ${client.user.tag} is online!`);
-    console.log(`📊 Serving ${client.guilds.cache.size} servers`);
+    console.log('═══════════════════════════════');
+    console.log('✅ BOT BERHASIL ONLINE!');
+    console.log(`🤖 Username: ${client.user.tag}`);
+    console.log(`📊 Servers: ${client.guilds.cache.size}`);
+    console.log(`👥 Users: ${client.users.cache.size}`);
+    console.log('═══════════════════════════════');
     
     client.user.setActivity('!help • Music Bot', { type: 2 });
 });
@@ -123,189 +143,9 @@ client.on('error', (error) => {
     console.error('❌ Discord Client Error:', error);
 });
 
-client.on('warn', (warning) => {
-    console.warn('⚠️ Discord Client Warning:', warning);
-});
-
 client.on('shardError', (error) => {
     console.error('❌ Shard Error:', error);
 });
-
-client.on('shardReady', (id) => {
-    console.log(`✅ Shard ${id} ready`);
-});
-
-client.on('shardDisconnect', (event, id) => {
-    console.warn(`⚠️ Shard ${id} disconnected:`, event);
-});
-
-client.on('shardReconnecting', (id) => {
-    console.log(`🔄 Shard ${id} reconnecting...`);
-});
-
-// ============ HELPER FUNCTIONS ============
-function formatDuration(ms) {
-    if (!ms || ms === 0) return '🔴 Live';
-    const s = Math.floor((ms / 1000) % 60);
-    const m = Math.floor((ms / (1000 * 60)) % 60);
-    const h = Math.floor(ms / (1000 * 60 * 60));
-    return h > 0 ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` : `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-function errorEmbed(message) {
-    return new EmbedBuilder().setColor('#ff6b6b').setDescription(`❌ ${message}`);
-}
-
-function successEmbed(message) {
-    return new EmbedBuilder().setColor(BOT_INFO.color).setDescription(message);
-}
-
-// ============ MESSAGE COMMANDS ============
-client.on('messageCreate', async (message) => {
-    if (message.author.bot) return;
-    if (!message.content.startsWith('!')) return;
-
-    const args = message.content.slice(1).trim().split(/ +/);
-    const command = args.shift().toLowerCase();
-
-    const validCommands = ['play', 'p', 'skip', 's', 'stop', 'pause', 'resume', 'queue', 'q', 'nowplaying', 'np', 'loop', 'volume', 'vol', 'seek', '8d', 'help', 'info', 'ping'];
-    if (!validCommands.includes(command)) return;
-
-    // (Sisanya tetap sama, cukup copy dari kode lama kamu)
-    // ... semua command code ...
-});
-
-// ============ GLOBAL ERROR HANDLERS ============
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('❌ Unhandled Rejection at:', promise);
-    console.error('❌ Reason:', reason);
-});
-
-process.on('uncaughtException', (error) => {
-    console.error('❌ Uncaught Exception:', error);
-    process.exit(1);
-});
-
-// ============ DEBUG & LOGIN ============
-console.log('========== DEBUG INFO ==========');
-console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('DISCORD_TOKEN exists:', !!process.env.DISCORD_TOKEN);
-console.log('DISCORD_TOKEN length:', process.env.DISCORD_TOKEN?.length || 0);
-
-// Validasi token format
-const token = process.env.DISCORD_TOKEN;
-if (token) {
-    const tokenParts = token.split('.');
-    console.log('Token parts count:', tokenParts.length);
-    console.log('Token starts with:', token.substring(0, 10));
-    
-    if (tokenParts.length !== 3) {
-        console.error('❌ TOKEN FORMAT SALAH! Token harus punya 3 bagian (xxx.yyy.zzz)');
-    }
-}
-console.log('================================');
-
-if (!token) {
-    console.error('❌ DISCORD_TOKEN tidak ditemukan di environment!');
-    process.exit(1);
-}
-
-console.log('🔄 Memulai proses login...');
-
-client.login(token)
-    .then(() => {
-        console.log('✅✅✅ LOGIN PROMISE RESOLVED ✅✅✅');
-    })
-    .catch((error) => {
-        console.error('❌❌❌ LOGIN FAILED ❌❌❌');
-        console.error('Error name:', error.name);
-        console.error('Error message:', error.message);
-        console.error('Error code:', error.code);
-        console.error('Full error:', JSON.stringify(error, null, 2));
-        process.exit(1);
-    });
-
-// Timeout checker
-setTimeout(() => {
-    if (!client.isReady()) {
-        console.error('❌ Bot belum ready setelah 30 detik!');
-        console.error('🔍 Cek:');
-        console.error('   1. Token benar?');
-        console.error('   2. Bot Intents aktif di Discord Developer Portal?');
-        console.error('   3. Network Render bisa akses Discord API?');
-    }
-}, 30000);
-
-// ============ LAVALINK EVENTS ============
-kazagumo.shoukaku.on('ready', (name) => console.log(`✅ Lavalink ${name} connected!`));
-kazagumo.shoukaku.on('error', (name, error) => console.error(`❌ Lavalink ${name} error:`, error));
-
-// ============ PLAYER EVENTS ============
-kazagumo.on('playerStart', (player, track) => {
-    const channel = client.channels.cache.get(player.textId);
-    if (!channel) return;
-
-    const embed = new EmbedBuilder()
-        .setColor(BOT_INFO.color)
-        .setAuthor({ name: 'Now Playing 🎵', iconURL: client.user.displayAvatarURL() })
-        .setTitle(track.title)
-        .setURL(track.uri)
-        .setThumbnail(track.thumbnail || null)
-        .addFields(
-            { name: 'Duration', value: formatDuration(track.length), inline: true },
-            { name: 'Author', value: track.author || 'Unknown', inline: true },
-            { name: 'Requested by', value: `${track.requester}`, inline: true }
-        )
-        .setFooter({ text: `Volume: ${player.volume}%  •  ${BOT_INFO.name} v${BOT_INFO.version}` })
-        .setTimestamp();
-
-    channel.send({ embeds: [embed] });
-});
-
-kazagumo.on('playerEmpty', (player) => {
-    const channel = client.channels.cache.get(player.textId);
-    if (channel) {
-        const embed = new EmbedBuilder()
-            .setColor('#ff6b6b')
-            .setDescription('⏹️ Queue finished. Disconnecting...')
-            .setTimestamp();
-        channel.send({ embeds: [embed] });
-    }
-    player.destroy();
-});
-
-kazagumo.on('playerError', (player, error) => {
-    console.error('Player error:', error);
-    const channel = client.channels.cache.get(player.textId);
-    if (channel) {
-        channel.send({ embeds: [errorEmbed('Failed to play track. Skipping...')] });
-    }
-});
-
-// ============ BOT READY ============
-client.once('ready', () => {
-    console.log(`🤖 ${client.user.tag} is online!`);
-    console.log(`📊 Serving ${client.guilds.cache.size} servers`);
-    
-    client.user.setActivity('!help • Music Bot', { type: 2 });
-});
-
-// ============ HELPER FUNCTIONS ============
-function formatDuration(ms) {
-    if (!ms || ms === 0) return '🔴 Live';
-    const s = Math.floor((ms / 1000) % 60);
-    const m = Math.floor((ms / (1000 * 60)) % 60);
-    const h = Math.floor(ms / (1000 * 60 * 60));
-    return h > 0 ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` : `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-function errorEmbed(message) {
-    return new EmbedBuilder().setColor('#ff6b6b').setDescription(`❌ ${message}`);
-}
-
-function successEmbed(message) {
-    return new EmbedBuilder().setColor(BOT_INFO.color).setDescription(message);
-}
 
 // ============ MESSAGE COMMANDS ============
 client.on('messageCreate', async (message) => {
@@ -379,7 +219,6 @@ client.on('messageCreate', async (message) => {
     if (command === 'skip' || command === 's') {
         const player = kazagumo.players.get(message.guild.id);
         if (!player?.queue.current) return message.reply({ embeds: [errorEmbed('Nothing to skip!')] });
-
         player.skip();
         message.react('⏭️');
     }
@@ -388,7 +227,6 @@ client.on('messageCreate', async (message) => {
     if (command === 'stop') {
         const player = kazagumo.players.get(message.guild.id);
         if (!player) return message.reply({ embeds: [errorEmbed('Nothing is playing!')] });
-
         player.destroy();
         message.react('⏹️');
     }
@@ -397,7 +235,6 @@ client.on('messageCreate', async (message) => {
     if (command === 'pause') {
         const player = kazagumo.players.get(message.guild.id);
         if (!player) return message.reply({ embeds: [errorEmbed('Nothing is playing!')] });
-
         player.pause(true);
         message.react('⏸️');
     }
@@ -406,7 +243,6 @@ client.on('messageCreate', async (message) => {
     if (command === 'resume') {
         const player = kazagumo.players.get(message.guild.id);
         if (!player) return message.reply({ embeds: [errorEmbed('Nothing is playing!')] });
-
         player.pause(false);
         message.react('▶️');
     }
@@ -465,80 +301,6 @@ client.on('messageCreate', async (message) => {
             .setFooter({ text: `Loop: ${player.loop || 'Off'}` });
 
         message.channel.send({ embeds: [embed] });
-    }
-
-    // ==================== LOOP ====================
-    if (command === 'loop') {
-        const player = kazagumo.players.get(message.guild.id);
-        if (!player) return message.reply({ embeds: [errorEmbed('Nothing is playing!')] });
-
-        const mode = args[0]?.toLowerCase();
-        if (!mode || !['track', 'queue', 'off'].includes(mode)) {
-            return message.reply({ embeds: [errorEmbed('Usage: `!loop <track/queue/off>`')] });
-        }
-
-        player.setLoop(mode === 'off' ? 'none' : mode);
-        
-        const icons = { track: '🔂', queue: '🔁', off: '➡️' };
-        message.channel.send({ embeds: [successEmbed(`${icons[mode]} Loop: **${mode.charAt(0).toUpperCase() + mode.slice(1)}**`)] });
-    }
-
-    // ==================== VOLUME ====================
-    if (command === 'volume' || command === 'vol') {
-        const player = kazagumo.players.get(message.guild.id);
-        if (!player) return message.reply({ embeds: [errorEmbed('Nothing is playing!')] });
-
-        if (!args[0]) {
-            return message.channel.send({ embeds: [successEmbed(`🔊 Current volume: **${player.volume}%**`)] });
-        }
-
-        const volume = parseInt(args[0]);
-        if (isNaN(volume) || volume < 0 || volume > 100) {
-            return message.reply({ embeds: [errorEmbed('Volume must be between 0-100')] });
-        }
-
-        player.setVolume(volume);
-        const icon = volume === 0 ? '🔇' : volume < 50 ? '🔉' : '🔊';
-        message.channel.send({ embeds: [successEmbed(`${icon} Volume: **${volume}%**`)] });
-    }
-
-    // ==================== SEEK ====================
-    if (command === 'seek') {
-        const player = kazagumo.players.get(message.guild.id);
-        if (!player?.queue.current) return message.reply({ embeds: [errorEmbed('Nothing is playing!')] });
-
-        const time = args[0];
-        if (!time) return message.reply({ embeds: [errorEmbed('Usage: `!seek <1:30>` or `!seek <90>`')] });
-
-        let ms;
-        if (time.includes(':')) {
-            const parts = time.split(':').map(Number);
-            ms = parts.length === 2 ? (parts[0] * 60 + parts[1]) * 1000 : (parts[0] * 3600 + parts[1] * 60 + parts[2]) * 1000;
-        } else {
-            ms = parseInt(time) * 1000;
-        }
-
-        if (isNaN(ms) || ms < 0 || ms > player.queue.current.length) {
-            return message.reply({ embeds: [errorEmbed('Invalid time!')] });
-        }
-
-        player.seek(ms);
-        message.channel.send({ embeds: [successEmbed(`⏩ Seeked to **${formatDuration(ms)}**`)] });
-    }
-
-    // ==================== 8D ====================
-    if (command === '8d') {
-        const player = kazagumo.players.get(message.guild.id);
-        if (!player) return message.reply({ embeds: [errorEmbed('Nothing is playing!')] });
-
-        const isEnabled = player.rotation?.rotationHz;
-        if (isEnabled) {
-            player.setRotation({ rotationHz: 0 });
-            message.channel.send({ embeds: [successEmbed('🎧 8D Audio: **Off**')] });
-        } else {
-            player.setRotation({ rotationHz: 0.2 });
-            message.channel.send({ embeds: [successEmbed('🎧 8D Audio: **On** (Use headphones!)')] });
-        }
     }
 
     // ==================== HELP ====================
@@ -605,14 +367,7 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-// ============ DEBUG ENVIRONMENT ============
-console.log('========== DEBUG INFO ==========');
-console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('DISCORD_TOKEN exists:', !!process.env.DISCORD_TOKEN);
-console.log('DISCORD_TOKEN length:', process.env.DISCORD_TOKEN?.length || 0);
-console.log('================================');
-
-// ============ UNHANDLED ERROR HANDLERS ============
+// ============ GLOBAL ERROR HANDLERS ============
 process.on('unhandledRejection', (reason, promise) => {
     console.error('❌ Unhandled Rejection:', reason);
 });
@@ -621,38 +376,39 @@ process.on('uncaughtException', (error) => {
     console.error('❌ Uncaught Exception:', error);
 });
 
-// ============ LOGIN WITH TIMEOUT ============
-const token = process.env.DISCORD_TOKEN;
+// ============ DEBUG & LOGIN ============
+console.log('========== DEBUG INFO ==========');
+console.log('DISCORD_TOKEN exists:', !!process.env.DISCORD_TOKEN);
+console.log('DISCORD_TOKEN length:', process.env.DISCORD_TOKEN?.length || 0);
 
-if (!token) {
+const discordToken = process.env.DISCORD_TOKEN;
+
+if (!discordToken) {
     console.error('❌ DISCORD_TOKEN tidak ditemukan!');
-} else {
-    console.log('🔄 Mencoba login ke Discord...');
-    
-    // Timeout 30 detik
-    const loginTimeout = setTimeout(() => {
-        console.error('❌ Login TIMEOUT setelah 30 detik!');
-        console.error('🔑 Kemungkinan token salah atau network issue');
-    }, 30000);
-    
-    client.login(token)
-        .then(() => {
-            clearTimeout(loginTimeout);
-            console.log('✅ Login berhasil!');
-        })
-        .catch((error) => {
-            clearTimeout(loginTimeout);
-            console.error('❌ Login GAGAL!');
-            console.error('Error:', error.message);
-            console.error('Code:', error.code);
-        });
+    console.error('Set di Render Dashboard → Environment');
+    process.exit(1);
 }
 
-// ============ CLIENT ERROR EVENT ============
-client.on('error', (error) => {
-    console.error('❌ Client Error:', error);
-});
+// Validasi format token
+const tokenParts = discordToken.split('.');
+console.log('Token parts:', tokenParts.length, '(harus 3)');
+console.log('================================');
 
-client.on('warn', (warning) => {
-    console.warn('⚠️ Client Warning:', warning);
-});
+if (tokenParts.length !== 3) {
+    console.error('❌ Format token salah! Token Discord harus 3 bagian (xxx.yyy.zzz)');
+    console.error('Cek ulang token di Discord Developer Portal');
+    process.exit(1);
+}
+
+console.log('🔄 Memulai login ke Discord...');
+
+client.login(discordToken)
+    .then(() => {
+        console.log('✅ Login promise resolved!');
+    })
+    .catch((error) => {
+        console.error('❌ LOGIN GAGAL!');
+        console.error('Error:', error.message);
+        console.error('Code:', error.code);
+        process.exit(1);
+    });
