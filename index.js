@@ -30,6 +30,81 @@ app.get('/ping', (req, res) => res.status(200).send('OK'));
 
 app.listen(PORT, () => console.log(`🌐 Server running on port ${PORT}`));
 
+// ============ TEST ENDPOINTS ============
+app.get('/test-discord', async (req, res) => {
+    try {
+        const https = require('https');
+        
+        console.log('🔍 Testing Discord API connection...');
+        
+        const testGateway = () => new Promise((resolve, reject) => {
+            const req = https.get('https://discord.com/api/v10/gateway', (resp) => {
+                let data = '';
+                resp.on('data', chunk => data += chunk);
+                resp.on('end', () => {
+                    console.log('✅ Discord API Response:', resp.statusCode);
+                    resolve({ status: resp.statusCode, data: JSON.parse(data) });
+                });
+            });
+            req.on('error', (err) => {
+                console.error('❌ Discord API Error:', err.message);
+                reject(err);
+            });
+            req.setTimeout(10000, () => {
+                req.destroy();
+                reject(new Error('Timeout'));
+            });
+        });
+        
+        const result = await testGateway();
+        res.json({
+            success: true,
+            canReachDiscord: true,
+            gateway: result.data.url,
+            statusCode: result.status,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('❌ Test failed:', error.message);
+        res.json({
+            success: false,
+            canReachDiscord: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+app.get('/test-websocket', (req, res) => {
+    const WebSocket = require('ws');
+    
+    console.log('🔍 Testing WebSocket connection...');
+    
+    try {
+        const ws = new WebSocket('wss://gateway.discord.gg/?v=10&encoding=json');
+        
+        const timeout = setTimeout(() => {
+            ws.close();
+            res.json({ success: false, error: 'WebSocket timeout' });
+        }, 10000);
+        
+        ws.on('open', () => {
+            console.log('✅ WebSocket connected!');
+            clearTimeout(timeout);
+            ws.close();
+            res.json({ success: true, message: 'WebSocket connection OK' });
+        });
+        
+        ws.on('error', (error) => {
+            console.error('❌ WebSocket error:', error.message);
+            clearTimeout(timeout);
+            res.json({ success: false, error: error.message });
+        });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // ============ DISCORD CLIENT ============
 const client = new Client({
     intents: [
@@ -37,7 +112,15 @@ const client = new Client({
         GatewayIntentBits.GuildVoiceStates,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent
-    ]
+    ],
+    ws: {
+        properties: {
+            browser: 'Discord Android'
+        },
+        version: 10
+    },
+    restRequestTimeout: 30000,
+    retryLimit: 3
 });
 
 // ============ LAVALINK NODES ============
@@ -130,21 +213,44 @@ kazagumo.on('playerError', (player, error) => {
 // ============ DISCORD CLIENT EVENTS ============
 client.on('ready', () => {
     console.log('═══════════════════════════════');
-    console.log('✅ BOT BERHASIL ONLINE!');
-    console.log(`🤖 Username: ${client.user.tag}`);
-    console.log(`📊 Servers: ${client.guilds.cache.size}`);
-    console.log(`👥 Users: ${client.users.cache.size}`);
+    console.log('✅✅✅ BOT ONLINE! ✅✅✅');
+    console.log(`🤖 ${client.user.tag}`);
+    console.log(`📊 ${client.guilds.cache.size} servers`);
     console.log('═══════════════════════════════');
-    
     client.user.setActivity('!help • Music Bot', { type: 2 });
 });
 
 client.on('error', (error) => {
-    console.error('❌ Discord Client Error:', error);
+    console.error('❌ Client Error:', error.message);
+    console.error('Stack:', error.stack);
 });
 
-client.on('shardError', (error) => {
-    console.error('❌ Shard Error:', error);
+client.on('shardError', (error, shardId) => {
+    console.error(`❌ Shard ${shardId} Error:`, error.message);
+});
+
+client.on('shardReady', (id) => {
+    console.log(`✅ Shard ${id} ready`);
+});
+
+client.on('shardDisconnect', (event, id) => {
+    console.warn(`⚠️ Shard ${id} disconnected:`, event.code, event.reason);
+});
+
+client.on('shardReconnecting', (id) => {
+    console.log(`🔄 Shard ${id} reconnecting...`);
+});
+
+client.on('shardResume', (id, replayedEvents) => {
+    console.log(`✅ Shard ${id} resumed (${replayedEvents} events)`);
+});
+
+client.on('invalidated', () => {
+    console.error('❌ Session invalidated!');
+});
+
+client.ws.on('ready', (data) => {
+    console.log('✅ WebSocket ready:', data);
 });
 
 // ============ MESSAGE COMMANDS ============
@@ -158,7 +264,6 @@ client.on('messageCreate', async (message) => {
     const validCommands = ['play', 'p', 'skip', 's', 'stop', 'pause', 'resume', 'queue', 'q', 'nowplaying', 'np', 'loop', 'volume', 'vol', 'seek', '8d', 'help', 'info', 'ping'];
     if (!validCommands.includes(command)) return;
 
-    // ==================== PLAY ====================
     if (command === 'play' || command === 'p') {
         if (!message.member.voice.channel) {
             return message.reply({ embeds: [errorEmbed('Join a voice channel first!')] });
@@ -215,7 +320,6 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    // ==================== SKIP ====================
     if (command === 'skip' || command === 's') {
         const player = kazagumo.players.get(message.guild.id);
         if (!player?.queue.current) return message.reply({ embeds: [errorEmbed('Nothing to skip!')] });
@@ -223,7 +327,6 @@ client.on('messageCreate', async (message) => {
         message.react('⏭️');
     }
 
-    // ==================== STOP ====================
     if (command === 'stop') {
         const player = kazagumo.players.get(message.guild.id);
         if (!player) return message.reply({ embeds: [errorEmbed('Nothing is playing!')] });
@@ -231,7 +334,6 @@ client.on('messageCreate', async (message) => {
         message.react('⏹️');
     }
 
-    // ==================== PAUSE ====================
     if (command === 'pause') {
         const player = kazagumo.players.get(message.guild.id);
         if (!player) return message.reply({ embeds: [errorEmbed('Nothing is playing!')] });
@@ -239,7 +341,6 @@ client.on('messageCreate', async (message) => {
         message.react('⏸️');
     }
 
-    // ==================== RESUME ====================
     if (command === 'resume') {
         const player = kazagumo.players.get(message.guild.id);
         if (!player) return message.reply({ embeds: [errorEmbed('Nothing is playing!')] });
@@ -247,7 +348,6 @@ client.on('messageCreate', async (message) => {
         message.react('▶️');
     }
 
-    // ==================== QUEUE ====================
     if (command === 'queue' || command === 'q') {
         const player = kazagumo.players.get(message.guild.id);
         if (!player?.queue.current) return message.reply({ embeds: [errorEmbed('Queue is empty!')] });
@@ -274,36 +374,6 @@ client.on('messageCreate', async (message) => {
         message.channel.send({ embeds: [embed] });
     }
 
-    // ==================== NOW PLAYING ====================
-    if (command === 'nowplaying' || command === 'np') {
-        const player = kazagumo.players.get(message.guild.id);
-        if (!player?.queue.current) return message.reply({ embeds: [errorEmbed('Nothing is playing!')] });
-
-        const current = player.queue.current;
-        const position = player.position;
-        const duration = current.length;
-
-        const progress = duration ? Math.round((position / duration) * 15) : 0;
-        const bar = '▬'.repeat(progress) + '🔘' + '▬'.repeat(15 - progress);
-
-        const embed = new EmbedBuilder()
-            .setColor(BOT_INFO.color)
-            .setAuthor({ name: 'Now Playing', iconURL: client.user.displayAvatarURL() })
-            .setTitle(current.title)
-            .setURL(current.uri)
-            .setThumbnail(current.thumbnail)
-            .addFields(
-                { name: 'Author', value: current.author || 'Unknown', inline: true },
-                { name: 'Requested by', value: `${current.requester}`, inline: true },
-                { name: 'Volume', value: `${player.volume}%`, inline: true }
-            )
-            .setDescription(`\`${formatDuration(position)}\` ${bar} \`${formatDuration(duration)}\``)
-            .setFooter({ text: `Loop: ${player.loop || 'Off'}` });
-
-        message.channel.send({ embeds: [embed] });
-    }
-
-    // ==================== HELP ====================
     if (command === 'help') {
         const embed = new EmbedBuilder()
             .setColor(BOT_INFO.color)
@@ -332,31 +402,6 @@ client.on('messageCreate', async (message) => {
         message.channel.send({ embeds: [embed] });
     }
 
-    // ==================== INFO ====================
-    if (command === 'info') {
-        const uptime = process.uptime();
-        const hours = Math.floor(uptime / 3600);
-        const minutes = Math.floor((uptime % 3600) / 60);
-
-        const embed = new EmbedBuilder()
-            .setColor(BOT_INFO.color)
-            .setAuthor({ name: BOT_INFO.name, iconURL: client.user.displayAvatarURL() })
-            .setDescription(BOT_INFO.description)
-            .addFields(
-                { name: '👨‍💻 Developer', value: `<@${BOT_INFO.owner.id}>`, inline: true },
-                { name: '📊 Servers', value: `${client.guilds.cache.size}`, inline: true },
-                { name: '⏱️ Uptime', value: `${hours}h ${minutes}m`, inline: true },
-                { name: '🏷️ Version', value: BOT_INFO.version, inline: true },
-                { name: '📚 Library', value: 'Discord.js v14', inline: true },
-                { name: '🎵 Audio', value: 'Lavalink v4', inline: true }
-            )
-            .setFooter({ text: `Requested by ${message.author.tag}` })
-            .setTimestamp();
-
-        message.channel.send({ embeds: [embed] });
-    }
-
-    // ==================== PING ====================
     if (command === 'ping') {
         const latency = Date.now() - message.createdTimestamp;
         const embed = new EmbedBuilder()
@@ -377,63 +422,91 @@ process.on('uncaughtException', (error) => {
 });
 
 // ============ DEBUG & LOGIN ============
-console.log('========== DEBUG INFO ==========');
-console.log('DISCORD_TOKEN exists:', !!process.env.DISCORD_TOKEN);
-console.log('DISCORD_TOKEN length:', process.env.DISCORD_TOKEN?.length || 0);
+console.log('');
+console.log('═══════════════════════════════════════');
+console.log('          DEBUG INFORMATION            ');
+console.log('═══════════════════════════════════════');
+console.log('Node version:', process.version);
+console.log('Platform:', process.platform);
+console.log('Discord.js version:', require('discord.js').version);
+console.log('');
+console.log('Environment:');
+console.log('  NODE_ENV:', process.env.NODE_ENV);
+console.log('  PORT:', process.env.PORT);
+console.log('  DISCORD_TOKEN exists:', !!process.env.DISCORD_TOKEN);
+console.log('  DISCORD_TOKEN length:', process.env.DISCORD_TOKEN?.length || 0);
 
 const discordToken = process.env.DISCORD_TOKEN;
 
 if (!discordToken) {
-    console.error('❌ DISCORD_TOKEN tidak ditemukan!');
+    console.error('❌ FATAL: DISCORD_TOKEN tidak ditemukan!');
     process.exit(1);
 }
 
-// Trim whitespace (sering jadi masalah)
 const cleanToken = discordToken.trim();
 const tokenParts = cleanToken.split('.');
-console.log('Token parts:', tokenParts.length, '(harus 3)');
 
-// Cek ada whitespace/newline tersembunyi
-if (discordToken !== cleanToken) {
-    console.warn('⚠️ Token punya whitespace! Menggunakan token yang sudah di-trim');
-}
-
-console.log('================================');
+console.log('');
+console.log('Token validation:');
+console.log('  Parts count:', tokenParts.length, tokenParts.length === 3 ? '✅' : '❌');
+console.log('  First 20 chars:', cleanToken.substring(0, 20) + '...');
+console.log('═══════════════════════════════════════');
 
 if (tokenParts.length !== 3) {
-    console.error('❌ Format token salah!');
+    console.error('❌ FATAL: Token format invalid!');
     process.exit(1);
 }
 
-// Debug mode untuk Discord.js
 client.on('debug', (info) => {
-    console.log('[DEBUG]', info);
+    if (info.includes('Prepared') || 
+        info.includes('Connecting') || 
+        info.includes('Identifying') ||
+        info.includes('Ready') ||
+        info.includes('Heartbeat') ||
+        info.includes('Session')) {
+        console.log('[WS DEBUG]', info);
+    }
 });
 
-console.log('🔄 Memulai login ke Discord...');
+console.log('');
+console.log('🔄 Starting login process...');
+console.log('');
 
-// Set timeout
+let loginStartTime = Date.now();
+let checkInterval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - loginStartTime) / 1000);
+    if (elapsed % 10 === 0 && elapsed > 0) {
+        console.log(`⏱️  Still waiting... ${elapsed}s elapsed`);
+    }
+}, 1000);
+
 const loginTimeout = setTimeout(() => {
-    console.error('❌ LOGIN TIMEOUT setelah 60 detik!');
-    console.error('Kemungkinan:');
-    console.error('  1. Token salah atau expired');
-    console.error('  2. Intents tidak aktif di Discord Developer Portal');
-    console.error('  3. Network Render tidak bisa akses Discord API');
-    console.error('  4. Discord API sedang down');
+    clearInterval(checkInterval);
+    console.error('');
+    console.error('═══════════════════════════════════════');
+    console.error('❌ LOGIN TIMEOUT (60 detik)');
+    console.error('═══════════════════════════════════════');
+    console.error('Test manual:');
+    console.error('  • https://musikkkk.onrender.com/test-discord');
+    console.error('  • https://musikkkk.onrender.com/test-websocket');
+    console.error('═══════════════════════════════════════');
     process.exit(1);
 }, 60000);
 
 client.login(cleanToken)
     .then(() => {
         clearTimeout(loginTimeout);
-        console.log('✅ Login promise resolved!');
+        clearInterval(checkInterval);
+        const elapsed = ((Date.now() - loginStartTime) / 1000).toFixed(2);
+        console.log('✅ Login success in', elapsed, 'seconds');
     })
     .catch((error) => {
         clearTimeout(loginTimeout);
-        console.error('❌ LOGIN GAGAL!');
-        console.error('Error name:', error.name);
-        console.error('Error message:', error.message);
-        console.error('Error code:', error.code);
+        clearInterval(checkInterval);
+        console.error('');
+        console.error('❌ LOGIN FAILED!');
+        console.error('Error:', error.message);
+        console.error('Code:', error.code);
         console.error('Stack:', error.stack);
         process.exit(1);
     });
