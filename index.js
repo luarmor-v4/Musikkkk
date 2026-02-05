@@ -433,5 +433,40 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-// ============ LOGIN ============
-client.login(process.env.DISCORD_TOKEN);
+// ============ DEBUG ENVIRONMENT ============
+console.log('========== DEBUG INFO ==========');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('DISCORD_TOKEN exists:', !!process.env.DISCORD_TOKEN);
+console.log('DISCORD_TOKEN length:', process.env.DISCORD_TOKEN?.length || 0);
+console.log('DISCORD_TOKEN preview:', process.env.DISCORD_TOKEN 
+    ? `${process.env.DISCORD_TOKEN.substring(0, 10)}...${process.env.DISCORD_TOKEN.substring(process.env.DISCORD_TOKEN.length - 5)}` 
+    : 'UNDEFINED');
+console.log('================================');
+
+// ============ LOGIN WITH ERROR HANDLING ============
+const token = process.env.DISCORD_TOKEN;
+
+if (!token) {
+    console.error('❌ DISCORD_TOKEN tidak ditemukan!');
+    console.error('📋 Pastikan kamu sudah menambahkan DISCORD_TOKEN di:');
+    console.error('   Render Dashboard → Environment → Add Environment Variable');
+    console.error('   Key: DISCORD_TOKEN');
+    console.error('   Value: token bot kamu dari Discord Developer Portal');
+} else {
+    client.login(token)
+        .then(() => {
+            console.log('✅ Login berhasil!');
+        })
+        .catch((error) => {
+            console.error('❌ Login GAGAL!');
+            console.error('Error name:', error.name);
+            console.error('Error message:', error.message);
+            
+            if (error.message.includes('TOKEN_INVALID')) {
+                console.error('🔑 Token tidak valid! Cek ulang token di Discord Developer Portal');
+            } else if (error.message.includes('disallowed intents')) {
+                console.error('⚠️ Intents tidak diaktifkan! Aktifkan di Discord Developer Portal:');
+                console.error('   → Bot → Privileged Gateway Intents → Aktifkan semua');
+            }
+        });
+}
