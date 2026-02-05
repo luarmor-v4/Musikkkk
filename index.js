@@ -385,30 +385,55 @@ const discordToken = process.env.DISCORD_TOKEN;
 
 if (!discordToken) {
     console.error('❌ DISCORD_TOKEN tidak ditemukan!');
-    console.error('Set di Render Dashboard → Environment');
     process.exit(1);
 }
 
-// Validasi format token
-const tokenParts = discordToken.split('.');
+// Trim whitespace (sering jadi masalah)
+const cleanToken = discordToken.trim();
+const tokenParts = cleanToken.split('.');
 console.log('Token parts:', tokenParts.length, '(harus 3)');
+
+// Cek ada whitespace/newline tersembunyi
+if (discordToken !== cleanToken) {
+    console.warn('⚠️ Token punya whitespace! Menggunakan token yang sudah di-trim');
+}
+
 console.log('================================');
 
 if (tokenParts.length !== 3) {
-    console.error('❌ Format token salah! Token Discord harus 3 bagian (xxx.yyy.zzz)');
-    console.error('Cek ulang token di Discord Developer Portal');
+    console.error('❌ Format token salah!');
     process.exit(1);
 }
 
+// Debug mode untuk Discord.js
+client.on('debug', (info) => {
+    console.log('[DEBUG]', info);
+});
+
 console.log('🔄 Memulai login ke Discord...');
 
-client.login(discordToken)
+// Set timeout
+const loginTimeout = setTimeout(() => {
+    console.error('❌ LOGIN TIMEOUT setelah 60 detik!');
+    console.error('Kemungkinan:');
+    console.error('  1. Token salah atau expired');
+    console.error('  2. Intents tidak aktif di Discord Developer Portal');
+    console.error('  3. Network Render tidak bisa akses Discord API');
+    console.error('  4. Discord API sedang down');
+    process.exit(1);
+}, 60000);
+
+client.login(cleanToken)
     .then(() => {
+        clearTimeout(loginTimeout);
         console.log('✅ Login promise resolved!');
     })
     .catch((error) => {
+        clearTimeout(loginTimeout);
         console.error('❌ LOGIN GAGAL!');
-        console.error('Error:', error.message);
-        console.error('Code:', error.code);
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error code:', error.code);
+        console.error('Stack:', error.stack);
         process.exit(1);
     });
