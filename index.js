@@ -110,6 +110,178 @@ kazagumo.on('playerError', (player, error) => {
     }
 });
 
+// ============ DISCORD CLIENT EVENTS ============
+client.on('ready', () => {
+    console.log('✅✅✅ BOT READY EVENT TRIGGERED ✅✅✅');
+    console.log(`🤖 ${client.user.tag} is online!`);
+    console.log(`📊 Serving ${client.guilds.cache.size} servers`);
+    
+    client.user.setActivity('!help • Music Bot', { type: 2 });
+});
+
+client.on('error', (error) => {
+    console.error('❌ Discord Client Error:', error);
+});
+
+client.on('warn', (warning) => {
+    console.warn('⚠️ Discord Client Warning:', warning);
+});
+
+client.on('shardError', (error) => {
+    console.error('❌ Shard Error:', error);
+});
+
+client.on('shardReady', (id) => {
+    console.log(`✅ Shard ${id} ready`);
+});
+
+client.on('shardDisconnect', (event, id) => {
+    console.warn(`⚠️ Shard ${id} disconnected:`, event);
+});
+
+client.on('shardReconnecting', (id) => {
+    console.log(`🔄 Shard ${id} reconnecting...`);
+});
+
+// ============ HELPER FUNCTIONS ============
+function formatDuration(ms) {
+    if (!ms || ms === 0) return '🔴 Live';
+    const s = Math.floor((ms / 1000) % 60);
+    const m = Math.floor((ms / (1000 * 60)) % 60);
+    const h = Math.floor(ms / (1000 * 60 * 60));
+    return h > 0 ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` : `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function errorEmbed(message) {
+    return new EmbedBuilder().setColor('#ff6b6b').setDescription(`❌ ${message}`);
+}
+
+function successEmbed(message) {
+    return new EmbedBuilder().setColor(BOT_INFO.color).setDescription(message);
+}
+
+// ============ MESSAGE COMMANDS ============
+client.on('messageCreate', async (message) => {
+    if (message.author.bot) return;
+    if (!message.content.startsWith('!')) return;
+
+    const args = message.content.slice(1).trim().split(/ +/);
+    const command = args.shift().toLowerCase();
+
+    const validCommands = ['play', 'p', 'skip', 's', 'stop', 'pause', 'resume', 'queue', 'q', 'nowplaying', 'np', 'loop', 'volume', 'vol', 'seek', '8d', 'help', 'info', 'ping'];
+    if (!validCommands.includes(command)) return;
+
+    // (Sisanya tetap sama, cukup copy dari kode lama kamu)
+    // ... semua command code ...
+});
+
+// ============ GLOBAL ERROR HANDLERS ============
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Unhandled Rejection at:', promise);
+    console.error('❌ Reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('❌ Uncaught Exception:', error);
+    process.exit(1);
+});
+
+// ============ DEBUG & LOGIN ============
+console.log('========== DEBUG INFO ==========');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('DISCORD_TOKEN exists:', !!process.env.DISCORD_TOKEN);
+console.log('DISCORD_TOKEN length:', process.env.DISCORD_TOKEN?.length || 0);
+
+// Validasi token format
+const token = process.env.DISCORD_TOKEN;
+if (token) {
+    const tokenParts = token.split('.');
+    console.log('Token parts count:', tokenParts.length);
+    console.log('Token starts with:', token.substring(0, 10));
+    
+    if (tokenParts.length !== 3) {
+        console.error('❌ TOKEN FORMAT SALAH! Token harus punya 3 bagian (xxx.yyy.zzz)');
+    }
+}
+console.log('================================');
+
+if (!token) {
+    console.error('❌ DISCORD_TOKEN tidak ditemukan di environment!');
+    process.exit(1);
+}
+
+console.log('🔄 Memulai proses login...');
+
+client.login(token)
+    .then(() => {
+        console.log('✅✅✅ LOGIN PROMISE RESOLVED ✅✅✅');
+    })
+    .catch((error) => {
+        console.error('❌❌❌ LOGIN FAILED ❌❌❌');
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error code:', error.code);
+        console.error('Full error:', JSON.stringify(error, null, 2));
+        process.exit(1);
+    });
+
+// Timeout checker
+setTimeout(() => {
+    if (!client.isReady()) {
+        console.error('❌ Bot belum ready setelah 30 detik!');
+        console.error('🔍 Cek:');
+        console.error('   1. Token benar?');
+        console.error('   2. Bot Intents aktif di Discord Developer Portal?');
+        console.error('   3. Network Render bisa akses Discord API?');
+    }
+}, 30000);
+
+// ============ LAVALINK EVENTS ============
+kazagumo.shoukaku.on('ready', (name) => console.log(`✅ Lavalink ${name} connected!`));
+kazagumo.shoukaku.on('error', (name, error) => console.error(`❌ Lavalink ${name} error:`, error));
+
+// ============ PLAYER EVENTS ============
+kazagumo.on('playerStart', (player, track) => {
+    const channel = client.channels.cache.get(player.textId);
+    if (!channel) return;
+
+    const embed = new EmbedBuilder()
+        .setColor(BOT_INFO.color)
+        .setAuthor({ name: 'Now Playing 🎵', iconURL: client.user.displayAvatarURL() })
+        .setTitle(track.title)
+        .setURL(track.uri)
+        .setThumbnail(track.thumbnail || null)
+        .addFields(
+            { name: 'Duration', value: formatDuration(track.length), inline: true },
+            { name: 'Author', value: track.author || 'Unknown', inline: true },
+            { name: 'Requested by', value: `${track.requester}`, inline: true }
+        )
+        .setFooter({ text: `Volume: ${player.volume}%  •  ${BOT_INFO.name} v${BOT_INFO.version}` })
+        .setTimestamp();
+
+    channel.send({ embeds: [embed] });
+});
+
+kazagumo.on('playerEmpty', (player) => {
+    const channel = client.channels.cache.get(player.textId);
+    if (channel) {
+        const embed = new EmbedBuilder()
+            .setColor('#ff6b6b')
+            .setDescription('⏹️ Queue finished. Disconnecting...')
+            .setTimestamp();
+        channel.send({ embeds: [embed] });
+    }
+    player.destroy();
+});
+
+kazagumo.on('playerError', (player, error) => {
+    console.error('Player error:', error);
+    const channel = client.channels.cache.get(player.textId);
+    if (channel) {
+        channel.send({ embeds: [errorEmbed('Failed to play track. Skipping...')] });
+    }
+});
+
 // ============ BOT READY ============
 client.once('ready', () => {
     console.log(`🤖 ${client.user.tag} is online!`);
